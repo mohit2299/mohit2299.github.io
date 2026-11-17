@@ -1,0 +1,574 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Mohit Gupta | Data analyst for demand and inventory</title><meta name="description" content="Mohit Gupta builds forecasts, dashboards and planning tools that tell teams what will sell, what is sitting too long and what to order next.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400..800&family=Manrope:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+/* Layout idea: walk through a store. Window, then the fitting room (size curves), then the shelf (assortment), then checkout. */
+:root{
+  --wall:#EEF0F3; --floor:#E2E5EA; --card:#FFFFFF; --ink:#12141A; --soft:#4F5663; --faint:#808896; --rule:#D5D9E0;
+  --accent:#2B50FF; --accent-ink:#FFFFFF; --glass:#DCE6F5;
+  --c-navy:#26324F; --c-sage:#8DB09B; --c-sand:#D9C9A5; --c-brick:#B5483A; --c-sky:#8DB6EA; --c-char:#3C4049;
+  --good:#1E8E5E; --warn:#C27A00; --bad:#C62F2F;
+  --display:'Bricolage Grotesque',system-ui,sans-serif; --body:'Manrope',system-ui,sans-serif;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --wall:#0F1115; --floor:#171A20; --card:#1A1E25; --ink:#F1F3F6; --soft:#B7BDC8; --faint:#828A98; --rule:#2A2F38;
+  --accent:#8EA2FF; --accent-ink:#0F1115; --glass:#1E2A3F;
+  --good:#4CC38F; --warn:#E6AE3C; --bad:#F26A6A; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --wall:#0F1115; --floor:#171A20; --card:#1A1E25; --ink:#F1F3F6; --soft:#B7BDC8; --faint:#828A98; --rule:#2A2F38;
+  --accent:#8EA2FF; --accent-ink:#0F1115; --glass:#1E2A3F;
+  --good:#4CC38F; --warn:#E6AE3C; --bad:#F26A6A; color-scheme:dark}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth;scroll-padding-top:84px}
+@media (prefers-reduced-motion:reduce){html{scroll-behavior:auto}*{transition:none!important;animation:none!important}}
+body{margin:0;background:var(--wall);color:var(--ink);font:17px/1.6 var(--body)}
+a{color:inherit}
+a:focus-visible,button:focus-visible,input:focus-visible,[tabindex]:focus-visible{outline:3px solid var(--accent);outline-offset:3px;border-radius:6px}
+.wrap{max-width:1120px;margin:0 auto;padding:0 20px}
+h1,h2,h3{font-family:var(--display);margin:0;text-wrap:balance;letter-spacing:-.02em}
+h1{font-weight:800;font-size:clamp(44px,7.4vw,88px);line-height:.96}
+h2{font-weight:700;font-size:clamp(30px,4.4vw,48px);line-height:1.02}
+h3{font-weight:700;font-size:21px;line-height:1.15}
+.kicker{font:700 12px var(--body);text-transform:uppercase;letter-spacing:.14em;color:var(--accent)}
+.sub{color:var(--soft);max-width:56ch;margin:10px 0 0}
+
+/* directory nav, like hanging store signs */
+.dir{position:sticky;top:0;z-index:20;background:color-mix(in srgb,var(--wall) 86%,transparent);backdrop-filter:blur(10px);border-bottom:1px solid var(--rule)}
+.dir .wrap{display:flex;align-items:center;justify-content:space-between;gap:14px;height:62px}
+.brand{font:800 18px var(--display);text-decoration:none;letter-spacing:-.02em}
+.signs{display:flex;gap:8px;list-style:none;margin:0;padding:0;overflow-x:auto}
+.signs a{display:block;text-decoration:none;font:600 13px var(--body);padding:8px 14px;border:1.5px solid var(--ink);border-radius:999px;white-space:nowrap;transition:background .2s,color .2s}
+.signs a:hover,.signs a.on{background:var(--ink);color:var(--wall)}
+
+/* storefront */
+.entry{padding:40px 0 20px;overflow:hidden}
+.entry .wrap{display:grid;grid-template-columns:1fr 1.05fr;gap:36px;align-items:center}
+@media (max-width:900px){.entry .wrap{grid-template-columns:1fr}}
+.entry p.lead{font-size:clamp(18px,2.1vw,21px);line-height:1.5;color:var(--soft);max-width:30em;margin:20px 0 26px}
+.btns{display:flex;gap:12px;flex-wrap:wrap}
+.btn{display:inline-flex;align-items:center;gap:8px;font:700 15px var(--body);text-decoration:none;padding:14px 22px;border-radius:999px;background:var(--accent);color:var(--accent-ink);border:2px solid var(--accent);transition:transform .2s,box-shadow .2s;cursor:pointer}
+.btn:hover{transform:translateY(-2px);box-shadow:0 8px 20px -8px var(--accent)}
+.btn.ghost{background:transparent;color:var(--ink);border-color:var(--ink)}
+.store{width:100%;height:auto;display:block;--mx:0;--my:0}
+.store .inner{transform:translate(calc(var(--mx)*8px),calc(var(--my)*5px));transition:transform .25s ease-out}
+.tee{cursor:pointer;transform-origin:50% 0;transform-box:fill-box;transition:transform .35s cubic-bezier(.3,1.6,.5,1)}
+.tee:hover,.tee:focus-visible{transform:rotate(-8deg) scale(1.06)}
+.tag{position:absolute;pointer-events:none}
+.hint{font:600 13px var(--body);color:var(--faint);margin:8px 0 0;text-align:center}
+
+/* generic section */
+section{padding:84px 0 0}
+.head{margin-bottom:28px}
+.panel{background:var(--card);border:1px solid var(--rule);border-radius:20px;padding:24px}
+
+/* size curve lab */
+.lab{display:grid;grid-template-columns:1fr;gap:20px}
+.tabs{display:flex;gap:8px;flex-wrap:wrap}
+.tabs button,.chipbtn{font:600 14px var(--body);padding:9px 16px;border-radius:999px;border:1.5px solid var(--rule);background:transparent;color:var(--ink);cursor:pointer;transition:all .2s}
+.tabs button[aria-pressed="true"],.chipbtn[aria-pressed="true"]{background:var(--ink);color:var(--wall);border-color:var(--ink)}
+.tabs button:hover,.chipbtn:hover{border-color:var(--ink)}
+.metrics{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
+@media (max-width:640px){.metrics{grid-template-columns:1fr}}
+.m{border:1px solid var(--rule);border-radius:14px;padding:14px 16px}
+.m b{display:block;font:600 12px var(--body);text-transform:uppercase;letter-spacing:.08em;color:var(--faint)}
+.m span{font:800 34px/1.1 var(--display);font-variant-numeric:tabular-nums}
+.m small{display:block;color:var(--soft);font-size:13px}
+.chartbox{position:relative}
+#curve{width:100%;height:auto;display:block;overflow:visible}
+#curve text{font:600 12px var(--body);fill:var(--faint)}
+#curve .bar{fill:var(--accent);transition:y .35s cubic-bezier(.3,1.2,.4,1),height .35s cubic-bezier(.3,1.2,.4,1),fill .2s}
+#curve .bar.over{fill:var(--bad)}
+#curve .bar.under{fill:var(--warn)}
+#curve .dem{fill:none;stroke:var(--ink);stroke-width:3;stroke-linecap:round;stroke-linejoin:round;transition:d .35s}
+#curve .dot{fill:var(--ink);transition:cy .35s}
+#curve .grid{stroke:var(--rule);stroke-width:1}
+.legend{display:flex;gap:18px;flex-wrap:wrap;font:600 13px var(--body);color:var(--soft)}
+.legend i{display:inline-block;width:14px;height:14px;border-radius:4px;margin-right:6px;vertical-align:-2px}
+.sliders{display:grid;gap:6px}
+.sl{display:grid;gap:6px;text-align:center;font:600 12px var(--body);color:var(--soft)}
+.sliders-grid{display:grid;grid-auto-flow:column;grid-auto-columns:1fr;gap:6px}
+.sl input{width:100%;accent-color:var(--accent);margin:0}
+.sl output{color:var(--ink);font-variant-numeric:tabular-nums}
+.gap{font:700 12px var(--body);font-variant-numeric:tabular-nums}
+.gap.p{color:var(--bad)}.gap.n{color:var(--warn)}.gap.z{color:var(--good)}
+.row-actions{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+.read{color:var(--soft);font-size:15px;margin:0;max-width:70ch}
+
+/* shelf */
+.fixture{background:var(--card);border:1px solid var(--rule);border-radius:20px;padding:24px;display:grid;gap:22px}
+.controls{display:grid;grid-template-columns:1fr 1fr auto;gap:18px;align-items:end}
+@media (max-width:760px){.controls{grid-template-columns:1fr}}
+.controls label{display:grid;gap:6px;font:600 13px var(--body);color:var(--soft)}
+.controls .r{display:flex;justify-content:space-between}
+.controls output{color:var(--ink)}
+.controls input{accent-color:var(--accent)}
+.shelf{display:grid;gap:6px}
+.shelf h3{font:700 13px var(--body);text-transform:uppercase;letter-spacing:.12em;color:var(--faint)}
+.board{display:grid;grid-template-columns:repeat(auto-fit,minmax(122px,1fr));gap:10px;padding:16px 12px 0;border-bottom:8px solid var(--ink);border-radius:4px 4px 0 0;background:linear-gradient(var(--floor),transparent 70%)}
+.prod{position:relative;background:none;border:none;padding:0 0 12px;text-align:center;cursor:pointer;font:inherit;color:inherit;transition:transform .3s cubic-bezier(.3,1.5,.5,1),opacity .25s,filter .25s}
+.prod:hover,.prod:focus-visible{transform:translateY(-8px)}
+.prod svg{width:86px;height:86px;display:block;margin:0 auto 6px}
+.prod .n{font:700 13px var(--body);display:block}
+.prod .w{font:500 12px var(--body);color:var(--soft);display:block;font-variant-numeric:tabular-nums}
+.pill{display:inline-block;margin-top:4px;padding:2px 10px;border-radius:999px;font:700 11px var(--body);letter-spacing:.04em;text-transform:uppercase;color:#fff}
+.pill.trim{background:var(--bad)}.pill.hold{background:var(--faint)}.pill.expand{background:var(--good)}
+.prod.dim{opacity:.22;filter:grayscale(1)}
+.detail{min-height:56px;border:1px dashed var(--rule);border-radius:12px;padding:12px 16px;font-size:15px;color:var(--soft)}
+.detail b{color:var(--ink)}
+.sumline{display:flex;gap:22px;flex-wrap:wrap;font:700 15px var(--body)}
+.sumline span small{display:block;font:500 12px var(--body);color:var(--faint)}
+
+
+/* web store */
+.wb{display:grid;grid-template-columns:270px 1fr;gap:26px}
+@media (max-width:860px){.wb{grid-template-columns:1fr}}
+.wb .ctl{display:grid;gap:16px;align-content:start}
+.wb .ctl label{display:grid;gap:6px;font:600 13px var(--body);color:var(--soft)}
+.wb .ctl .r{display:flex;justify-content:space-between}
+.wb .ctl output{color:var(--ink);font-variant-numeric:tabular-nums}
+.wb input[type=range]{accent-color:var(--accent);width:100%}
+.eq{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:14px}
+.eq .t{border:1px solid var(--rule);border-radius:14px;padding:10px 14px;min-width:96px}
+.eq .t b{display:block;font:600 11px var(--body);text-transform:uppercase;letter-spacing:.08em;color:var(--faint)}
+.eq .t span{font:800 22px var(--display);font-variant-numeric:tabular-nums}
+.eq .t small{display:block;font:700 12px var(--body)}
+.eq .op{font:800 22px var(--display);color:var(--faint)}
+.eq .t.res{background:var(--ink);color:var(--wall);border-color:var(--ink)}
+.eq .t.res b{color:var(--wall);opacity:.7}
+.up{color:var(--good)}.dn{color:var(--bad)}
+#fc{width:100%;height:auto;display:block;overflow:visible}
+#fc text{font:600 12px var(--body);fill:var(--faint)}
+#fc .band{fill:var(--accent);opacity:.16}
+#fc .ln{fill:none;stroke:var(--accent);stroke-width:3;stroke-linecap:round;stroke-linejoin:round}
+#fc .base{fill:none;stroke:var(--faint);stroke-width:2;stroke-dasharray:5 5}
+#fc .grid{stroke:var(--rule)}
+#fc .evt{fill:var(--tag,#FFD400);opacity:.35}
+
+/* proof + applies */
+.proof{padding:8px 0 36px}
+.proofgrid{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}
+@media (max-width:760px){.proofgrid{grid-template-columns:1fr}}
+.pf{background:var(--card);border:1px solid var(--rule);border-radius:18px;padding:18px 20px}
+.pf b{display:block;font:800 clamp(30px,4vw,42px)/1 var(--display);letter-spacing:-.02em}
+.pf span{display:block;margin-top:8px;color:var(--soft);font-size:15px}
+.applies{margin-top:18px;display:flex;gap:8px;flex-wrap:wrap;align-items:center;color:var(--soft);font-size:15px}
+.applies .chip{background:var(--card)}
+.ptag{display:table;margin-top:16px;font:700 11px var(--body);text-transform:uppercase;letter-spacing:.1em;border:1.5px dashed var(--faint);color:var(--soft);border-radius:999px;padding:3px 10px;margin-bottom:10px}
+/* primer */
+.primer{display:grid;grid-template-columns:repeat(4,1fr);gap:14px}
+@media (max-width:980px){.primer{grid-template-columns:repeat(2,1fr)}}
+@media (max-width:560px){.primer{grid-template-columns:1fr}}
+.pcard{background:var(--card);border:1px solid var(--rule);border-radius:18px;padding:20px 18px}
+.pcard .t{font:700 11px var(--body);text-transform:uppercase;letter-spacing:.12em;color:var(--accent)}
+.pcard h3{margin:6px 0 8px;font-size:18px}
+.pcard p{margin:0;color:var(--soft);font-size:15px}
+.pcard .ex{margin-top:10px;padding-top:10px;border-top:1px dashed var(--rule);font-size:14px;color:var(--faint)}
+.why{margin:0 0 14px;padding:12px 16px;border-left:4px solid var(--accent);background:var(--card);border-radius:0 12px 12px 0;color:var(--soft);font-size:15px}
+.why b{color:var(--ink)}
+
+/* work */
+.rack{display:grid;grid-template-columns:repeat(2,1fr);gap:16px}
+@media (max-width:760px){.rack{grid-template-columns:1fr}}
+.item{position:relative;background:var(--card);border:1px solid var(--rule);border-radius:20px;padding:26px 24px 22px;transition:transform .3s cubic-bezier(.3,1.4,.5,1),box-shadow .3s}
+.item:hover{transform:translateY(-6px) rotate(-.4deg);box-shadow:0 18px 30px -18px rgba(0,0,0,.35)}
+.item:before{content:"";position:absolute;left:50%;top:-8px;width:16px;height:16px;border-radius:50%;background:var(--wall);border:2px solid var(--ink);transform:translateX(-50%)}
+.item dl{margin:14px 0 0;display:grid;gap:10px}
+.item dt{font:700 11px var(--body);text-transform:uppercase;letter-spacing:.12em;color:var(--accent)}
+.item dd{margin:2px 0 0;color:var(--soft);font-size:15px}
+.chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px}
+.chip{font:600 12px var(--body);border:1.5px solid var(--rule);padding:3px 10px;border-radius:999px;color:var(--soft)}
+
+/* about + checkout */
+.about{display:grid;grid-template-columns:1fr 1fr;gap:36px}
+@media (max-width:860px){.about{grid-template-columns:1fr}}
+.line{display:grid;grid-template-columns:104px 1fr;gap:2px 14px;padding:12px 0;border-bottom:1px solid var(--rule)}
+.line .w{font:600 13px var(--body);color:var(--faint)}
+.line h3{font-size:16px}
+.line p{margin:2px 0 0;color:var(--soft);font-size:15px}
+.checkout{margin-top:84px;background:var(--ink);color:var(--wall);padding:64px 0}
+.checkout h2{max-width:13em}
+.checkout .wrap{display:flex;gap:28px;align-items:end;justify-content:space-between;flex-wrap:wrap}
+.checkout .btn{background:var(--wall);color:var(--ink);border-color:var(--wall)}
+.checkout .btn.ghost{background:transparent;color:var(--wall)}
+footer{background:var(--ink);color:var(--faint);padding:0 0 28px;font-size:13px}
+footer .wrap{border-top:1px solid #2A2F38;padding-top:18px}
+</style>
+</head>
+<body>
+<nav class="dir" aria-label="Store directory">
+  <div class="wrap">
+    <a class="brand" href="#top">Mohit Gupta</a>
+    <ul class="signs" id="signs">
+      <li><a href="#primer">The problems</a></li><li><a href="#lab">Try: sizes</a></li><li><a href="#shelf">Try: inventory</a></li><li><a href="#web">Try: forecasting</a></li><li><a href="#work">Projects</a></li><li><a href="#about">About</a></li><li><a href="#checkout">Contact</a></li>
+    </ul>
+  </div>
+</nav>
+
+<header class="entry" id="top">
+  <div class="wrap">
+    <div>
+      <div class="kicker">Data analyst · Demand and inventory · Portland, OR</div>
+      <h1 style="margin-top:14px">I help companies decide what to buy, and how much.</h1>
+      <p class="lead">I am Mohit Gupta, a data analyst. I build forecasts, dashboards and planning tools that tell teams what will sell, what is sitting too long and what to order next. My work is in retail and e-commerce, and the same methods fit any business that holds stock. SQL, R, Python and Power BI.</p>
+      <div class="btns"><a class="btn" href="#lab">Try the interactive demos</a><a class="btn ghost" href="Resume_MohitGupta_Outside_2026.pdf">Download resume</a></div>
+    </div>
+    <div>
+      <svg class="store" id="store" viewBox="0 0 560 440" role="img" aria-label="Illustration of a store window with tees hanging on a rail. Select a tee to open the size curve lab.">
+        <defs>
+          <symbol id="tee" viewBox="0 0 100 100"><path d="M22 4 L38 10 Q50 20 62 10 L78 4 L98 26 L82 38 L77 32 L77 96 L23 96 L23 32 L18 38 L2 26 Z"/></symbol>
+          <pattern id="awn" width="56" height="10" patternUnits="userSpaceOnUse"><rect width="28" height="10" fill="var(--ink)"/><rect x="28" width="28" height="10" fill="var(--card)"/></pattern>
+          <linearGradient id="glassg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="var(--glass)"/><stop offset="1" stop-color="var(--card)"/></linearGradient>
+        </defs>
+        <rect x="10" y="40" width="540" height="390" rx="10" fill="var(--floor)"/>
+        <path d="M20 40 H540 L560 120 H0 Z" fill="url(#awn)" stroke="var(--ink)" stroke-width="3"/>
+        <path d="M0 120 q14 26 28 0 q14 26 28 0 q14 26 28 0 q14 26 28 0 q14 26 28 0 q14 26 28 0 q14 26 28 0 q14 26 28 0 q14 26 28 0 q14 26 28 0 q14 26 28 0 q14 26 28 0 q14 26 28 0 q14 26 28 0 q14 26 28 0 q14 26 28 0 q14 26 28 0 q14 26 28 0 q14 26 28 0 q14 26 28 0 Z" fill="var(--ink)" opacity=".92"/>
+        <rect x="150" y="14" width="260" height="42" rx="8" fill="var(--ink)"/>
+        <text x="280" y="42" text-anchor="middle" fill="var(--wall)" style="font:800 22px var(--display);letter-spacing:.04em">SIZE &amp; SHELF</text>
+        <rect x="40" y="160" width="480" height="250" rx="10" fill="url(#glassg)" stroke="var(--ink)" stroke-width="3"/>
+        <g class="inner">
+          <line x1="70" y1="196" x2="490" y2="196" stroke="var(--ink)" stroke-width="5" stroke-linecap="round"/>
+          <g id="hang"></g>
+          <rect x="70" y="330" width="420" height="10" rx="3" fill="var(--ink)"/>
+          <g id="stacks"></g>
+        </g>
+        <rect x="236" y="410" width="88" height="20" fill="var(--ink)"/>
+        <text x="280" y="425" text-anchor="middle" fill="var(--wall)" style="font:700 11px var(--body);letter-spacing:.12em">OPEN</text>
+      </svg>
+      <p class="hint">The shop window is just decoration. Select a tee to jump to the size demo.</p>
+    </div>
+  </div>
+</header>
+
+<section class="proof" aria-label="Results at a glance">
+  <div class="wrap">
+    <div class="proofgrid">
+      <div class="pf"><b>19% vs 26%</b><span>Forecast error of my e-commerce demand model against a last-year benchmark, on months the model had never seen.</span></div>
+      <div class="pf"><b>234</b><span>Products whose size plans I found out of line with demand and corrected before production.</span></div>
+      <div class="pf"><b>1.5M units</b><span>Old, slow-moving stock I tracked and helped work down over about six months.</span></div>
+    </div>
+    <div class="applies"><b style="color:var(--ink)">Where this applies:</b><span class="chip">Retail</span><span class="chip">E-commerce</span><span class="chip">Supply chain</span><span class="chip">Operations</span><span class="chip">Finance planning</span></div>
+  </div>
+</section>
+
+<section id="primer">
+  <div class="wrap">
+    <div class="head"><div class="kicker">Start here</div><h2>The problems I work on</h2>
+      <p class="sub">Every business that sells physical goods faces the same four questions. No background needed. The demos below let you play with each one.</p></div>
+    <div class="primer">
+      <div class="pcard"><div class="t">Idea 1</div><h3>Size curve</h3><p>Not every size sells equally. A size curve is the share of sales each size gets, such as 5% in XS, 30% in M and 8% in XL.</p><p class="ex">Buy equal amounts of every size and you will run out of M while XS sits unsold.</p></div>
+      <div class="pcard"><div class="t">Idea 2</div><h3>The buy</h3><p>Before a season, a company decides how many units of each item to order from the factory. That order is called the buy, and it is hard to change once placed.</p><p class="ex">The skill is splitting one fixed order across sizes and items well.</p></div>
+      <div class="pcard"><div class="t">Idea 3</div><h3>Weeks of supply</h3><p>How long the stock on hand will last at the current sales pace. Stock of 600 units selling 50 a week is 12 weeks of supply.</p><p class="ex">Too many weeks means cash stuck in the back room. Too few means empty shelves.</p></div>
+      <div class="pcard"><div class="t">Idea 4</div><h3>Demand forecast</h3><p>An estimate of how many units customers will want next week or next month, with a range to show how sure the estimate is.</p><p class="ex">Everything above depends on it. Better forecasts mean better buys.</p></div>
+    </div>
+  </div>
+</section>
+
+<section id="lab">
+  <div class="wrap">
+    <div class="head"><div class="kicker">Try it: sizes</div><h2>Split an order across sizes</h2>
+      <span class="ptag">Practice data, not real results</span><p class="why"><b>Mirrors my work on:</b> size planning. <b>In plain words:</b> a company has a fixed number of units to order. The goal is to match stock in each size to how many people actually want that size. Start with the Balance button to see a good answer, then break it yourself.</p>
+      <p class="sub">The black line is how sizes sell. The bars are how stock will sit after your buy. Drag any size's buy quantity and watch the gap. Or let the balance button do the arithmetic. All numbers are made up.</p></div>
+    <div class="panel lab">
+      <div class="tabs" id="presets" role="group" aria-label="Product"></div>
+      <div class="metrics" id="metrics"></div>
+      <div class="chartbox"><svg id="curve" viewBox="0 0 640 280" role="img" aria-label="Chart of demand curve and projected inventory share by size"></svg></div>
+      <div class="legend"><span><i style="background:var(--accent)"></i>Stock share after buy</span><span><i style="background:var(--bad)"></i>Overstocked size</span><span><i style="background:var(--warn)"></i>Short size</span><span><i style="background:var(--ink);border-radius:50%"></i>Demand share</span></div>
+      <div class="sliders"><div class="sliders-grid" id="sl"></div></div>
+      <div class="row-actions"><button class="btn" id="bal">Balance my buy</button><button class="btn ghost" id="rst">Reset</button><p class="read" id="read"></p></div>
+    </div>
+  </div>
+</section>
+
+<section id="shelf">
+  <div class="wrap">
+    <div class="head"><div class="kicker">Try it: inventory</div><h2>Decide what to cut back and what to restock</h2>
+      <span class="ptag">Practice data, not real results</span><p class="why"><b>Mirrors my work on:</b> reorder and aged-stock tools. <b>In plain words:</b> every item on a shelf has a stock level and a sales pace. If it will take too long to sell through, it is a trim. If it will run out too soon, it is an expand. You decide where the lines are.</p>
+      <p class="sub">Twelve made-up items, sorted into three shelves. Set how many weeks of supply is too many and too few, and every item re-rates itself. Select an item for the numbers.</p></div>
+    <div class="fixture">
+      <div class="controls">
+        <label><span class="r"><span>Trim above</span><output id="ot"></output></span><input type="range" id="trim" min="10" max="60" value="30"></label>
+        <label><span class="r"><span>Expand below</span><output id="oe"></output></span><input type="range" id="exp" min="2" max="16" value="8"></label>
+        <div class="tabs" id="flt" role="group" aria-label="Filter"><button data-f="all" aria-pressed="true">All</button><button data-f="trim" aria-pressed="false">Trim</button><button data-f="expand" aria-pressed="false">Expand</button></div>
+      </div>
+      <div class="sumline" id="sum"></div>
+      <div id="shelves" class="shelf"></div>
+      <div class="detail" id="detail" aria-live="polite">Select an item to see its run rate, stock and weeks of supply.</div>
+    </div>
+  </div>
+</section>
+
+<section id="web">
+  <div class="wrap">
+    <div class="head"><div class="kicker">Try it: forecasting</div><h2>Forecast a month of online sales</h2>
+      <span class="ptag">Practice data, not real results</span><p class="why"><b>Mirrors my work on:</b> the e-commerce demand forecast. <b>In plain words:</b> an online store can predict sales by multiplying three things: how many people visit, how many of them buy, and how much each order is worth. Change one and see what happens to the month.</p>
+      <p class="sub">Online demand is traffic, times the share who buy, times what they spend. Change any of the three, move paid spend, or add a sale, and the 28-day forecast and its range update. All numbers are made up.</p></div>
+    <div class="panel wb">
+      <div class="ctl">
+        <label><span class="r"><span>Daily active users</span><output id="wd"></output></span><input type="range" id="w1" min="60000" max="200000" step="1000" value="120000"></label>
+        <label><span class="r"><span>Conversion rate</span><output id="wc"></output></span><input type="range" id="w2" min="15" max="60" step="1" value="34"></label>
+        <label><span class="r"><span>Average order value</span><output id="wa"></output></span><input type="range" id="w3" min="50" max="160" step="1" value="92"></label>
+        <label><span class="r"><span>Paid search and social</span><output id="ws"></output></span><input type="range" id="w4" min="50" max="150" step="5" value="100"></label>
+        <div class="tabs" role="group" aria-label="Sale event"><button id="wsale" aria-pressed="false">Add a 3-day sale</button></div>
+        <p class="read" style="font-size:13px">Spend moves traffic up and conversion down a little, with diminishing returns. The effect sizes here are illustrative.</p>
+      </div>
+      <div>
+        <div class="eq" id="eq"></div>
+        <svg id="fc" viewBox="0 0 640 260" role="img" aria-label="28-day demand forecast with a range"></svg>
+        <div class="legend" style="margin-top:8px"><span><i style="background:var(--accent)"></i>Forecast</span><span><i style="background:var(--accent);opacity:.3"></i>Likely range, widening with time</span><span><i style="background:var(--faint)"></i>Baseline settings</span></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="work">
+  <div class="wrap">
+    <div class="head"><div class="kicker">Projects</div><h2>What I built, and what changed</h2><p class="sub">Each one: the problem, what I did, and what came out of it. Described in general terms, with no internal data.</p></div>
+    <div class="rack">
+      <article class="item"><h3>Matching stock to what each size sells</h3><div class="chips"><span class="chip">R</span><span class="chip">SQL</span><span class="chip">Excel</span></div>
+        <dl><div><dt>The problem</dt><dd>A company was ordering sizes in proportions that did not match what customers bought, so some sizes ran out while others piled up.</dd></div>
+        <div><dt>What I did</dt><dd>Built a repeatable review that compares each size's sales, current stock and planned order, flags where they disagree, and recommends fixes. Where possible it moves existing stock before ordering new.</dd></div>
+        <div><dt>What came out of it</dt><dd>A review process the planning team can rerun each season, and a size plan for the next season.</dd></div></dl></article>
+      <article class="item"><h3>Finding demand for the largest sizes</h3><div class="chips"><span class="chip">SQL</span><span class="chip">Analysis</span></div>
+        <dl><div><dt>The problem</dt><dd>Nobody had a clear view of how much demand existed for the biggest and tallest sizes.</dd></div>
+        <div><dt>What I did</dt><dd>Measured sales of those sizes by product line and color, and separated the ones worth restocking from the ones that were not.</dd></div>
+        <div><dt>What came out of it</dt><dd>Ordering decisions for those sizes based on what actually sold.</dd></div></dl></article>
+      <article class="item"><h3>Ranking old stock by what to clear first</h3><div class="chips"><span class="chip">R</span><span class="chip">Excel</span></div>
+        <dl><div><dt>The problem</dt><dd>The company knew it had old stock, but there was no agreed order for which items to sell down first.</dd></div>
+        <div><dt>What I did</dt><dd>Built a tool that scores each item by how old it will be by the time it sells, sorts items into four action groups, and applies planned clearance oldest first. It refreshes from supplier files on a schedule and comes with a runbook.</dd></div>
+        <div><dt>What came out of it</dt><dd>One shared priority list, and a large block of old inventory worked down over months.</dd></div></dl></article>
+      <article class="item"><h3>One view for deciding what to reorder</h3><div class="chips"><span class="chip">R</span><span class="chip">SQL</span><span class="chip">Power BI</span></div>
+        <dl><div><dt>The problem</dt><dd>Planners built reorder lists by hand from five different sources that did not share the same product codes.</dd></div>
+        <div><dt>What I did</dt><dd>Combined the five sources into one view, set a minimum safety stock level, and separated true excess from the buffer a business needs.</dd></div>
+        <div><dt>What came out of it</dt><dd>A single consolidated view, and projected year-end inventory below the prior year.</dd></div></dl></article>
+      <article class="item"><h3>Forecasting online sales</h3><div class="chips"><span class="chip">Python</span><span class="chip">Regression</span><span class="chip">Databricks</span></div>
+        <dl><div><dt>The problem</dt><dd>Planners needed a daily sales forecast for the app and website that could account for promotions and advertising spend.</dd></div>
+        <div><dt>What I did</dt><dd>Built a model that forecasts visitors, share who buy and order size separately, then multiplies them. It includes ad spend and shows a likely range. I tested it on months it had not seen, and wrote a handover guide with automatic checks.</dd></div>
+        <div><dt>What came out of it</dt><dd>On held-out months it beat forecasts based on last year's sales. It also showed where it was weak: it over-forecast recently, and simpler models were hard to beat.</dd></div></dl></article>
+      <article class="item"><h3>Supply chain optimization</h3><div class="chips"><span class="chip">Python</span><span class="chip">Reinforcement learning</span><span class="chip">Folium</span></div>
+        <dl><div><dt>The problem</dt><dd>Could a program learn to predict whether a delivery will be on time, and could a planner order a list of cities into a sensible route?</dd></div>
+        <div><dt>What I did</dt><dd>A reinforcement-learning program (it learns by trial and error) that predicts whether a delivery will be on time, trained on a public supply chain dataset. A second tool takes a list of cities, orders the stops with a simple nearest-next rule, estimates travel days, and draws the route on an interactive map.</dd></div>
+        <div><dt>What I would do next</dt><dd>The route rule is a shortcut and does not guarantee the shortest path, so I would add a smarter improvement step and real limits such as delivery windows. The learning program is sensitive to settings, and a plain prediction model is the baseline it should be compared against.</dd></div></dl></article>
+    </div>
+  </div>
+</section>
+
+<section id="about">
+  <div class="wrap about">
+    <div>
+      <div class="head" style="margin-bottom:12px"><div class="kicker">About</div><h2>About Mohit</h2></div>
+      <p style="color:var(--soft)">I am a business analytics professional in Portland, Oregon, with a master's in Business Analytics from the University of Washington. I have worked in apparel inventory planning, ERP and logistics reporting, marketing analytics and e-commerce. I like finding out why two numbers disagree, and writing it down so the next person can run it.</p>
+      <div class="chips" style="margin-top:16px"><span class="chip">SQL</span><span class="chip">R</span><span class="chip">Databricks</span><span class="chip">BigQuery</span><span class="chip">Power BI</span><span class="chip">Tableau</span><span class="chip">Qlik</span><span class="chip">Excel</span><span class="chip">Forecasting</span><span class="chip">Regression</span><span class="chip">Clustering</span><span class="chip">A/B testing</span></div>
+    </div>
+    <div>
+      <div class="line"><div class="w">2026 to now</div><div><h3>Manager, Data Solutions</h3><p>adidas, Portland. E-commerce demand forecasting and BI platform migration.</p></div></div>
+      <div class="line"><div class="w">2025 to 2026</div><div><h3>Financial Analyst, Responsiveness</h3><p>adidas, Portland. Inventory planning analytics: aged inventory, reorders and size curves.</p></div></div>
+      <div class="line"><div class="w">2023 to 2025</div><div><h3>Business Analyst and Project Manager</h3><p>Franke Group, Fort Worth. ERP reporting and logistics dashboards.</p></div></div>
+      <div class="line"><div class="w">2023</div><div><h3>Product Manager</h3><p>Virufy, Seattle. Nonprofit AI-powered COVID-19 screening app; influencer outreach in Pakistan and Nigeria.</p></div></div>
+      <div class="line"><div class="w">2023</div><div><h3>Media Analyst, Analytics Capstone</h3><p>T-Mobile, Seattle. Advertising attribution and budget modeling.</p></div></div>
+      <div class="line"><div class="w">2021 to 2022</div><div><h3>Business Analyst</h3><p>Bewakoof, Bangalore. E-commerce analytics, returns and product pages.</p></div></div>
+      <div class="line"><div class="w">Education</div><div><h3>MS Business Analytics</h3><p>University of Washington, Foster School of Business. B.Tech, Information Technology, Vellore Institute of Technology.</p></div></div>
+    </div>
+  </div>
+</section>
+
+<div class="checkout" id="checkout">
+  <div class="wrap">
+    <h2>Want help matching what you stock to what customers buy?</h2>
+    <div class="btns"><a class="btn" href="https://www.linkedin.com/in/mohitgupta2299">Message me on LinkedIn</a><a class="btn ghost" href="mailto:mgpta007@gmail.com">Email</a><a class="btn ghost" href="https://github.com/mohit2299">GitHub</a></div>
+  </div>
+</div>
+<footer><div class="wrap">Project descriptions are generalized and contain no internal data or file names. The three interactive demos use made-up practice numbers.</div></footer>
+
+<script>
+(function(){
+  var $=function(i){return document.getElementById(i)};
+  var NS="http://www.w3.org/2000/svg";
+  var COL={navy:"var(--c-navy)",sage:"var(--c-sage)",sand:"var(--c-sand)",brick:"var(--c-brick)",sky:"var(--c-sky)",char:"var(--c-char)"};
+  function fmt(n){return Math.round(n).toLocaleString("en-US")}
+  function teeSvg(fill,size){return '<svg viewBox="0 0 100 100" aria-hidden="true"><use href="#tee" fill="'+fill+'" stroke="var(--ink)" stroke-width="2.5" stroke-linejoin="round"/></svg>'}
+
+  /* ---------- storefront ---------- */
+  var colors=["navy","sage","sand","brick","sky","char","sage","navy"];
+  var hang=$("hang");
+  colors.forEach(function(c,i){
+    var g=document.createElementNS(NS,"g");g.setAttribute("class","tee");g.setAttribute("tabindex","0");g.setAttribute("role","link");g.setAttribute("aria-label","Open the size curve lab");
+    g.innerHTML='<line x1="'+(100+i*50)+'" y1="196" x2="'+(100+i*50)+'" y2="206" stroke="var(--ink)" stroke-width="3"/><use href="#tee" x="'+(70+i*50)+'" y="204" width="60" height="60" fill="'+COL[c]+'" stroke="var(--ink)" stroke-width="2" stroke-linejoin="round"/>';
+    g.addEventListener("click",function(){location.hash="#lab"});
+    g.addEventListener("keydown",function(e){if(e.key==="Enter")location.hash="#lab"});
+    hang.appendChild(g);
+  });
+  var stacks=$("stacks");
+  [["sky",90],["sand",190],["brick",290],["navy",390]].forEach(function(s){
+    for(var k=0;k<4;k++){var r=document.createElementNS(NS,"rect");r.setAttribute("x",s[1]);r.setAttribute("y",312-k*5-0);r.setAttribute("width",60);r.setAttribute("height",18);r.setAttribute("rx",3);r.setAttribute("fill",COL[s[0]]);r.setAttribute("stroke","var(--ink)");r.setAttribute("stroke-width",2);r.setAttribute("transform","translate("+(k%2?3:0)+",0)");stacks.appendChild(r)}
+  });
+  var st=$("store");
+  document.querySelector(".entry").addEventListener("pointermove",function(e){var b=st.getBoundingClientRect();st.style.setProperty("--mx",((e.clientX-b.left)/b.width-.5).toFixed(2));st.style.setProperty("--my",((e.clientY-b.top)/b.height-.5).toFixed(2))});
+
+  /* ---------- size curve lab ---------- */
+  var PRESETS=[
+    {name:"Core tee",sizes:["XS","S","M","L","XL","2XL","3XL"],dem:[3,12,24,28,20,9,4],oh:[420,880,1150,1000,760,520,330],buy:[200,500,900,900,700,500,300]},
+    {name:"Hoodie",sizes:["XS","S","M","L","XL","2XL","3XL"],dem:[2,10,22,29,23,10,4],oh:[180,600,950,1100,900,600,260],buy:[150,400,800,1000,800,500,250]},
+    {name:"Extended sizes",sizes:["2XL","3XL","4XL","5XL"],dem:[26,48,20,6],oh:[500,420,350,260],buy:[400,300,300,250]}
+  ];
+  var cur=0,buy=PRESETS[0].buy.slice();
+  function sum(a){return a.reduce(function(x,y){return x+y},0)}
+  function stats(p,b){
+    var proj=p.oh.map(function(v,i){return v+b[i]}),T=sum(proj),D=sum(p.dem);
+    var ds=p.dem.map(function(v){return v/D}),is=proj.map(function(v){return v/T});
+    var err=0;for(var i=0;i<ds.length;i++)err+=Math.abs(is[i]-ds[i]);
+    return{proj:proj,ds:ds,is:is,err:err/2};
+  }
+  function drawCurve(){
+    var p=PRESETS[cur],s=stats(p,buy),n=p.sizes.length,W=640,H=280,L=40,R=10,Tp=14,B=44;
+    var cw=(W-L-R)/n,max=Math.max.apply(null,s.ds.concat(s.is))*1.2,ch=H-Tp-B;
+    var y=function(v){return Tp+ch*(1-v/max)};
+    var svg=$("curve");
+    if(svg.dataset.k!==String(cur)){
+      svg.dataset.k=cur;svg.innerHTML="";
+      for(var g=0;g<=4;g++){var gl=document.createElementNS(NS,"line");gl.setAttribute("class","grid");gl.setAttribute("x1",L);gl.setAttribute("x2",W-R);gl.setAttribute("id","gl"+g);svg.appendChild(gl);var gt=document.createElementNS(NS,"text");gt.setAttribute("x",L-8);gt.setAttribute("text-anchor","end");gt.setAttribute("id","gt"+g);svg.appendChild(gt)}
+      for(var i=0;i<n;i++){
+        var r=document.createElementNS(NS,"rect");r.setAttribute("class","bar");r.setAttribute("id","b"+i);r.setAttribute("rx",6);r.setAttribute("x",L+i*cw+cw*.18);r.setAttribute("width",cw*.64);r.setAttribute("y",H-B);r.setAttribute("height",0);svg.appendChild(r);
+        var t=document.createElementNS(NS,"text");t.setAttribute("x",L+i*cw+cw/2);t.setAttribute("y",H-B+22);t.setAttribute("text-anchor","middle");t.textContent=p.sizes[i];svg.appendChild(t);
+      }
+      var path=document.createElementNS(NS,"path");path.setAttribute("class","dem");path.setAttribute("id","dem");svg.appendChild(path);
+      for(var j=0;j<n;j++){var d=document.createElementNS(NS,"circle");d.setAttribute("class","dot");d.setAttribute("r",5);d.setAttribute("cx",L+j*cw+cw/2);d.setAttribute("id","d"+j);svg.appendChild(d)}
+      void svg.getBoundingClientRect();
+    }
+    for(var g2=0;g2<=4;g2++){var v=max*g2/4;var yy=y(v);$("gl"+g2).setAttribute("y1",yy);$("gl"+g2).setAttribute("y2",yy);$("gt"+g2).setAttribute("y",yy+4);$("gt"+g2).textContent=Math.round(v*100)+"%"}
+    var pts=[];
+    for(var i2=0;i2<n;i2++){
+      var h=ch*s.is[i2]/max,bar=$("b"+i2);
+      bar.setAttribute("y",H-B-h);bar.setAttribute("height",h);
+      var diff=s.is[i2]-s.ds[i2];
+      bar.setAttribute("class","bar"+(diff>0.015?" over":diff<-0.015?" under":""));
+      var cx=L+i2*cw+cw/2,cy=y(s.ds[i2]);$("d"+i2).setAttribute("cy",cy);pts.push((i2?"L":"M")+cx+" "+cy);
+    }
+    $("dem").setAttribute("d",pts.join(" "));
+  }
+  function renderLab(){
+    var p=PRESETS[cur],s=stats(p,buy),s0=stats(p,p.buy);
+    drawCurve();
+    $("metrics").innerHTML=
+      '<div class="m"><b>Units in the wrong size</b><span>'+(s.err*100).toFixed(1)+'%</span><small>Starting plan: '+(s0.err*100).toFixed(1)+'%</small></div>'+
+      '<div class="m"><b>Total buy</b><span>'+fmt(sum(buy))+'</span><small>Starting plan: '+fmt(sum(p.buy))+'</small></div>'+
+      '<div class="m"><b>Stock after buy</b><span>'+fmt(sum(s.proj))+'</span><small>On hand today: '+fmt(sum(p.oh))+'</small></div>';
+    for(var i=0;i<p.sizes.length;i++){
+      var d=(s.is[i]-s.ds[i])*100,o=$("o"+i),g=$("g"+i);
+      if(o)o.textContent=fmt(buy[i]);
+      if(g){g.textContent=(d>0?"+":"")+d.toFixed(1)+" pts";g.className="gap "+(d>1.5?"p":d<-1.5?"n":"z")}
+    }
+    var worst=0;for(var k=1;k<p.sizes.length;k++)if(Math.abs(s.is[k]-s.ds[k])>Math.abs(s.is[worst]-s.ds[worst]))worst=k;
+    var wd=(s.is[worst]-s.ds[worst])*100;
+    $("read").textContent=Math.abs(wd)<1.5?"The curve matches demand within about a point in every size.":"Largest gap: "+p.sizes[worst]+" is "+(wd>0?"overstocked":"short")+" by "+Math.abs(wd).toFixed(1)+" points of the curve.";
+  }
+  function buildControls(){
+    var p=PRESETS[cur];
+    $("sl").innerHTML=p.sizes.map(function(sz,i){return'<div class="sl"><span class="gap z" id="g'+i+'">0</span><input type="range" min="0" max="1500" step="10" id="s'+i+'" value="'+buy[i]+'" aria-label="Planned buy for size '+sz+'"><output id="o'+i+'"></output><b>'+sz+'</b></div>'}).join("");
+    p.sizes.forEach(function(_,i){$("s"+i).addEventListener("input",function(e){buy[i]=+e.target.value;renderLab()})});
+  }
+  $("presets").innerHTML=PRESETS.map(function(p,i){return'<button data-i="'+i+'" aria-pressed="'+(i===0)+'">'+p.name+'</button>'}).join("");
+  $("presets").addEventListener("click",function(e){var b=e.target.closest("button");if(!b)return;cur=+b.dataset.i;buy=PRESETS[cur].buy.slice();[].forEach.call($("presets").children,function(x){x.setAttribute("aria-pressed",String(x===b))});buildControls();renderLab()});
+  $("bal").addEventListener("click",function(){
+    var p=PRESETS[cur],T=sum(buy),H=sum(p.oh),D=sum(p.dem);
+    var tgt=p.dem.map(function(d,i){return Math.max(0,d/D*(H+T)-p.oh[i])}),ts=sum(tgt)||1;
+    buy=tgt.map(function(v){return Math.round(v*T/ts/10)*10});
+    p.sizes.forEach(function(_,i){$("s"+i).value=buy[i]});renderLab();
+  });
+  $("rst").addEventListener("click",function(){buy=PRESETS[cur].buy.slice();PRESETS[cur].sizes.forEach(function(_,i){$("s"+i).value=buy[i]});renderLab()});
+  buildControls();renderLab();
+
+  /* ---------- shelf ---------- */
+  var PROD=[
+    ["Core","Crew tee, navy","navy",620,16000],["Core","Crew tee, sage","sage",410,6200],["Core","Crew tee, sand","sand",260,9800],["Core","Pocket tee, brick","brick",180,2400],
+    ["Active","Run tee, sky","sky",540,3800],["Active","Run tee, charcoal","char",480,13500],["Active","Training tee, navy","navy",300,1900],["Active","Training tee, brick","brick",210,7400],
+    ["Seasonal","Graphic tee, sage","sage",150,6900],["Seasonal","Graphic tee, sky","sky",340,2100],["Seasonal","Graphic tee, sand","sand",90,4200],["Seasonal","Graphic tee, charcoal","char",260,3300]
+  ].map(function(r){return{shelf:r[0],name:r[1],col:r[2],rate:r[3],oh:r[4]}});
+  var filt="all",picked=-1;
+  function statusOf(w,t,e){return w>t?"trim":w<e?"expand":"hold"}
+  function renderShelf(){
+    var t=+$("trim").value,e=+$("exp").value;if(e>t)e=t;
+    $("ot").textContent=t+" wks";$("oe").textContent=e+" wks";
+    var tally={trim:0,hold:0,expand:0},trimUnits=0;
+    PROD.forEach(function(p){p.w=p.oh/p.rate;p.s=statusOf(p.w,t,e);tally[p.s]++;if(p.s==="trim")trimUnits+=p.oh});
+    $("sum").innerHTML='<span>'+tally.trim+'<small>to trim</small></span><span>'+tally.hold+'<small>to hold</small></span><span>'+tally.expand+'<small>to expand</small></span><span>'+fmt(trimUnits)+'<small>units sitting in trim items</small></span>';
+    var html="";
+    ["Core","Active","Seasonal"].forEach(function(sh){
+      html+='<h3>'+sh+' shelf</h3><div class="board">';
+      PROD.forEach(function(p,i){if(p.shelf!==sh)return;
+        var dim=filt!=="all"&&p.s!==filt;
+        html+='<button class="prod'+(dim?" dim":"")+'" data-i="'+i+'" aria-label="'+p.name+', '+p.w.toFixed(0)+' weeks of supply, '+p.s+'">'+teeSvg(COL[p.col])+'<span class="n">'+p.name.split(",")[0]+'</span><span class="w">'+p.w.toFixed(0)+' wks</span><span class="pill '+p.s+'">'+p.s+'</span></button>';
+      });
+      html+='</div>';
+    });
+    $("shelves").innerHTML=html;
+    showDetail();
+  }
+  function showDetail(){
+    if(picked<0)return;var p=PROD[picked];
+    $("detail").innerHTML='<b>'+p.name+'</b>: sells about '+fmt(p.rate)+' units a week, holds '+fmt(p.oh)+' units, so '+p.w.toFixed(1)+' weeks of supply. Rated <b>'+p.s+'</b>.';
+  }
+  $("shelves").addEventListener("click",function(e){var b=e.target.closest(".prod");if(!b)return;picked=+b.dataset.i;showDetail()});
+  $("trim").addEventListener("input",renderShelf);$("exp").addEventListener("input",renderShelf);
+  $("flt").addEventListener("click",function(e){var b=e.target.closest("button");if(!b)return;filt=b.dataset.f;[].forEach.call($("flt").children,function(x){x.setAttribute("aria-pressed",String(x===b))});renderShelf()});
+  renderShelf();
+
+
+  /* ---------- web store forecast ---------- */
+  (function(){
+    var WD=[1.0,0.98,0.97,0.99,1.04,1.08,1.05]; // weekday traffic pattern
+    var N=28,svg=$("fc"),W=640,H=260,L=48,R=10,T=14,B=30;
+    var sale=false;
+    function series(dau,cvr,aov,sp,withSale){
+      var out=[];
+      for(var d=0;d<N;d++){
+        var u=dau*WD[d%7]*(1+0.0015*d)*Math.pow(sp,0.10),c=cvr*Math.pow(sp,-0.03),a=aov;
+        if(withSale&&d>=10&&d<=12){u*=1.18;c*=1.10;a*=0.94}
+        out.push(u*c*a);
+      }
+      return out;
+    }
+    function money(v){return v>=1e6?"$"+(v/1e6).toFixed(2)+"M":"$"+Math.round(v/1000)+"K"}
+    function pct(v){return(v>=0?"+":"")+(v*100).toFixed(1)+"%"}
+    function cls(v){return v>=0?"up":"dn"}
+    function draw(){
+      var dau=+$("w1").value,cvr=+$("w2").value/1000,aov=+$("w3").value,sp=+$("w4").value/100;
+      $("wd").textContent=dau.toLocaleString("en-US");$("wc").textContent=(cvr*100).toFixed(1)+"%";$("wa").textContent="$"+aov;$("ws").textContent=Math.round(sp*100)+"% of plan";
+      var f=series(dau,cvr,aov,sp,sale),b=series(120000,0.034,92,1,false);
+      var tot=f.reduce(function(x,y){return x+y},0),bt=b.reduce(function(x,y){return x+y},0);
+      var dm=Math.pow(sp,0.10)*dau/120000-1,cm=cvr*Math.pow(sp,-0.03)/0.034-1,am=aov/92-1;
+      $("eq").innerHTML='<div class="t"><b>Users / day</b><span>'+Math.round(dau*Math.pow(sp,0.10)/1000)+'K</span><small class="'+cls(dm)+'">'+pct(dm)+'</small></div><span class="op">×</span>'+
+        '<div class="t"><b>Conversion</b><span>'+(cvr*Math.pow(sp,-0.03)*100).toFixed(2)+'%</span><small class="'+cls(cm)+'">'+pct(cm)+'</small></div><span class="op">×</span>'+
+        '<div class="t"><b>Order value</b><span>$'+aov+'</span><small class="'+cls(am)+'">'+pct(am)+'</small></div><span class="op">=</span>'+
+        '<div class="t res"><b>28-day demand</b><span>'+money(tot)+'</span><small>'+pct(tot/bt-1)+' vs baseline</small></div>';
+      var hi=f.map(function(v,i){return v*(1+0.06+0.005*i)}),lo=f.map(function(v,i){return v*(1-0.06-0.005*i)});
+      var maxv=Math.max.apply(null,hi.concat(b))*1.05,minv=Math.min.apply(null,lo.concat(b))*0.9;
+      var x=function(i){return L+(W-L-R)*i/(N-1)},y=function(v){return T+(H-T-B)*(1-(v-minv)/(maxv-minv))};
+      var g="";
+      for(var k=0;k<=4;k++){var v=minv+(maxv-minv)*k/4;g+='<line class="grid" x1="'+L+'" x2="'+(W-R)+'" y1="'+y(v)+'" y2="'+y(v)+'"/><text x="'+(L-8)+'" y="'+(y(v)+4)+'" text-anchor="end">'+money(v)+'</text>'}
+      if(sale)g+='<rect class="evt" x="'+x(10)+'" y="'+T+'" width="'+(x(12)-x(10))+'" height="'+(H-T-B)+'"/><text x="'+((x(10)+x(12))/2)+'" y="'+(T+12)+'" text-anchor="middle">Sale</text>';
+      var band="M"+f.map(function(_,i){return x(i)+" "+y(hi[i])}).join(" L")+" L"+f.map(function(_,i){var j=N-1-i;return x(j)+" "+y(lo[j])}).join(" L")+" Z";
+      var ln="M"+f.map(function(v,i){return x(i)+" "+y(v)}).join(" L"),bl="M"+b.map(function(v,i){return x(i)+" "+y(v)}).join(" L");
+      var xt="";[0,6,13,20,27].forEach(function(i){xt+='<text x="'+x(i)+'" y="'+(H-8)+'" text-anchor="middle">Day '+(i+1)+'</text>'});
+      svg.innerHTML=g+'<path class="band" d="'+band+'"/><path class="base" d="'+bl+'"/><path class="ln" d="'+ln+'"/>'+xt;
+    }
+    ["w1","w2","w3","w4"].forEach(function(i){$(i).addEventListener("input",draw)});
+    $("wsale").addEventListener("click",function(){sale=!sale;this.setAttribute("aria-pressed",String(sale));draw()});
+    draw();
+  })();
+
+  /* ---------- active sign in nav ---------- */
+  var links=[].slice.call(document.querySelectorAll("#signs a"));
+  if("IntersectionObserver" in window){
+    var io=new IntersectionObserver(function(es){es.forEach(function(en){if(en.isIntersecting){links.forEach(function(a){a.classList.toggle("on",a.getAttribute("href")==="#"+en.target.id)})}})},{rootMargin:"-40% 0px -55% 0px"});
+    ["lab","shelf","web","work","about","checkout"].forEach(function(id){var n=$(id);if(n)io.observe(n)});
+  }
+})();
+</script>
+</body>
+</html>
